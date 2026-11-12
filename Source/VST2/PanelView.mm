@@ -75,7 +75,7 @@ const Ctl kCtls[] = {
 };
 const int kNumCtls = (int) (sizeof (kCtls) / sizeof (kCtls[0]));
 
-const char* const kBandFreq[kNumBands] = { "below 80 Hz", "80 Hz - 3 kHz", "above 3 kHz", "above 9 kHz" };
+const char* const kBandFreq[4] = { "below 80 Hz", "80 Hz - 3 kHz", "above 3 kHz", "above 9 kHz" };
 
 // Preset section in the strip: a SAVE button and slots 1..8, then the readout
 const CGFloat kStripLabelY = 181.0;
@@ -346,7 +346,7 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
     NSRectFill (NSMakeRect (558.0, 22.0, 1.2, 122.0));
     [rgb (246, 247, 249) set];
     NSRectFill (NSMakeRect (559.2, 22.0, 0.8, 122.0));
-    for (int b = 0; b < kNumBands; ++b)
+    for (int b = 0; b < 4; ++b)
     {
         char t[16];
         std::snprintf (t, sizeof (t), "BAND %d", b + 1);
