@@ -86,7 +86,7 @@ int main (int argc, char** argv)
     std::printf ("\nIdentity\n");
     check (e->magic == kEffectMagic, "magic is 'VstP'");
     check (e->numInputs == 2 && e->numOutputs == 2, "stereo in/out");
-    check (e->numParams == tbtypea::kNumParams && tbtypea::kNumParams == 13, "13 parameters (11 panel + 2 plugin)");
+    check (e->numParams == tbtypea::kNumParams && tbtypea::kNumParams == 13, "13 parameters (Tone, NR, Stress, 4 x band on/level, 2 trims)");
     check ((e->flags & effFlagsCanReplacing) != 0, "processReplacing supported");
     check ((e->flags & effFlagsIsSynth) == 0, "not flagged as an instrument");
     check (e->initialDelay == tbtypea::TypeA360::latencySamples(), "reports oversampler latency");
@@ -105,7 +105,7 @@ int main (int argc, char** argv)
     call (e, effSetBlockSize, 0, 512);
 
     std::printf ("\nParameters\n");
-    const char* expectDisp[13] = { "Off", "In", "Rec", "On", "0.0", "On", "0.0", "On", "0.0", "On", "0.0", "+0.0", "+0.0" };
+    const char* expectDisp[13] = { "Off", "In", "+0.0", "On", "0.0", "On", "0.0", "On", "0.0", "On", "0.0", "+0.0", "+0.0" };
     for (int i = 0; i < tbtypea::kNumParams; ++i)
     {
         char name[64] = { 0 }, disp[64] = { 0 }, label[64] = { 0 };
@@ -123,9 +123,18 @@ int main (int argc, char** argv)
     check (e->getParameter (e, 0) == 1.0f, "out-of-range values are clamped");
     e->setParameter (e, 0, 0.0f);      // Dolby Tone back off
     std::memset (buf, 0, sizeof (buf));
-    e->setParameter (e, tbtypea::kB2Level, 0.5f);
+    e->setParameter (e, tbtypea::kB2Level, 0.25f);
     call (e, effGetParamDisplay, tbtypea::kB2Level, 0, buf);
-    check (std::fabs (std::atof (buf) + 12.0) < 0.05, "band level at half shows -12.0 dB");
+    check (std::fabs (std::atof (buf) + 12.0) < 0.05, "band level at 2.5 shows -12.0 dB");
+    e->setParameter (e, tbtypea::kB2Level, 1.0f);
+    std::memset (buf, 0, sizeof (buf));
+    call (e, effGetParamDisplay, tbtypea::kB2Level, 0, buf);
+    check (std::strcmp (buf, "+18.0") == 0, "band level at 10 shows +18.0 dB");
+    e->setParameter (e, tbtypea::kStress, 1.0f);
+    std::memset (buf, 0, sizeof (buf));
+    call (e, effGetParamDisplay, tbtypea::kStress, 0, buf);
+    check (std::strcmp (buf, "+24.0") == 0, "STRESS at max shows +24.0 dB");
+    e->setParameter (e, tbtypea::kStress, 0.0f);
     std::memset (buf, 0, sizeof (buf));
     call (e, effGetParamLabel, tbtypea::kB2Level, 0, buf);
     check (std::strcmp (buf, "dB") == 0, "band level label is dB");
@@ -133,22 +142,17 @@ int main (int argc, char** argv)
     std::memset (buf, 0, sizeof (buf));
     call (e, effGetParamDisplay, tbtypea::kB2Level, 0, buf);
     check (std::strcmp (buf, "Off") == 0, "band level at zero shows Off");
-    e->setParameter (e, tbtypea::kB2Level, 1.0f);
-    e->setParameter (e, tbtypea::kMode, 0.0f);
-    std::memset (buf, 0, sizeof (buf));
-    call (e, effGetParamDisplay, tbtypea::kMode, 0, buf);
-    check (std::strcmp (buf, "Play") == 0, "Mode shows Play");
-    e->setParameter (e, tbtypea::kMode, 1.0f);
+    e->setParameter (e, tbtypea::kB2Level, 0.5f);
     e->setParameter (e, tbtypea::kOutput, 1.0f);
     std::memset (buf, 0, sizeof (buf));
     call (e, effGetParamDisplay, tbtypea::kOutput, 0, buf);
     check (std::strcmp (buf, "+20.0") == 0, "Output shows +20.0 dB at max");
-    e->setParameter (e, tbtypea::kOutput, 0.5f);
+    e->setParameter (e, tbtypea::kOutput, tbtypea::kDefaults[tbtypea::kOutput]);
     e->setParameter (e, tbtypea::kInput, 0.0f);
     std::memset (buf, 0, sizeof (buf));
     call (e, effGetParamDisplay, tbtypea::kInput, 0, buf);
-    check (std::strcmp (buf, "-20.0") == 0, "Input shows -20.0 dB at min");
-    e->setParameter (e, tbtypea::kInput, 0.5f);
+    check (std::strcmp (buf, "-40.0") == 0, "Input shows -40.0 dB at min");
+    e->setParameter (e, tbtypea::kInput, tbtypea::kDefaults[tbtypea::kInput]);
     e->setParameter (e, 99, 0.5f);   // must be ignored, not crash
     check (e->getParameter (e, 99) == 0.0f, "invalid parameter index is harmless");
 
@@ -163,7 +167,8 @@ int main (int argc, char** argv)
     tbtypea::TypeA360* refp = new tbtypea::TypeA360();
     tbtypea::TypeA360& ref = *refp;
     ref.setDolbyTone (false); ref.setNrIn (true); ref.setRecord (true);
-    for (int b = 0; b < tbtypea::kNumBands; ++b) { ref.setBandOn (b, true); ref.setBandLevel (b, 1.0); }
+    for (int b = 0; b < tbtypea::kNumBands; ++b) { ref.setBandOn (b, true); ref.setBandLevel (b, 0.5); }
+    ref.setStressDb (0.0);
     ref.setInputGainDb (0.0); ref.setOutputGainDb (0.0);
     ref.prepare (sr);
     std::vector<float> refOut (sr);
@@ -229,7 +234,7 @@ int main (int argc, char** argv)
         double tail = 0.0;
         for (int i = sr * 3; i < sr * 4; ++i) tail = std::max (tail, (double) std::fabs (oa[i]));
         std::printf ("  residual after 3 s of silence (Input +20): %.2g\n", tail);
-        e->setParameter (e, tbtypea::kInput, 0.5f);
+        e->setParameter (e, tbtypea::kInput, tbtypea::kDefaults[tbtypea::kInput]);
         check (tail < 1e-4, "silence settles to silence");
     }
 

@@ -2,8 +2,8 @@
 // VST 2.4 wrapper for TB Type A 360 (the A-type Model 360 noise reduction
 // unit with its Cat. No. 22 module, plus the band mod).
 //
-// - Parameters follow the front panel (Dolby Tone, NR in-out, Rec / Play,
-//   BAND 1-4 on/off and level), then the plugin-only Input and Output trims.
+// - Parameters follow the front panel (Dolby Tone, NR in-out, BAND 1-4 on/off
+//   and level, the input and output trimpots). Always in record (encode).
 // - Stereo in, stereo out: each side runs through its own copy of the
 //   circuit with the same settings (the 360 is a single channel; this is two
 //   units side by side). A mono source (both inputs identical) is processed
@@ -211,7 +211,7 @@ private:
                 if (ptr && index >= 0 && index < kNumParams)
                 {
                     const int k = kParamKind[index];
-                    copyString ((char*) ptr, (k == kDb20 || k == kBandLevel) ? "dB" : "", kVstMaxParamStrLen);
+                    copyString ((char*) ptr, (k == kInTrim || k == kOutTrim || k == kBandLevel || k == kStressKnob) ? "dB" : "", kVstMaxParamStrLen);
                 }
                 return 0;
             case effGetParamDisplay:
@@ -294,16 +294,18 @@ private:
         {
             case kToneSw:  std::strcpy (buf, isOn (v) ? "On" : "Off"); break;
             case kNrSw:    std::strcpy (buf, isOn (v) ? "In" : "Out"); break;
-            case kModeSw:  std::strcpy (buf, isOn (v) ? "Rec" : "Play"); break;
+            case kStressKnob: std::snprintf (buf, sizeof (buf), "%+.1f", stressDb (v)); break;
             case kBandSw:  std::strcpy (buf, isOn (v) ? "On" : "Off"); break;
             case kBandLevel:
             {
                 const double dB = TypeA360::bandLevelDb (v);
                 if (dB < -99.0) std::strcpy (buf, "Off");
-                else std::snprintf (buf, sizeof (buf), "%.1f", dB);
+                else if (std::fabs (dB) < 0.05) std::strcpy (buf, "0.0");
+                else std::snprintf (buf, sizeof (buf), "%+.1f", dB);
                 break;
             }
-            case kDb20:    std::snprintf (buf, sizeof (buf), "%+.1f", (v * 2.0 - 1.0) * kTrimRangeDb); break;
+            case kInTrim:  std::snprintf (buf, sizeof (buf), "%+.1f", inputDb (v)); break;
+            case kOutTrim: std::snprintf (buf, sizeof (buf), "%+.1f", outputDb (v)); break;
             default:       buf[0] = 0; break;
         }
         copyString (text, buf, kVstMaxParamStrLen);
@@ -330,7 +332,7 @@ private:
             {
                 case kTone:    u.setDolbyTone (on); break;
                 case kNr:      u.setNrIn (on); break;
-                case kMode:    u.setRecord (on); break;
+                case kStress:  u.setStressDb (stressDb (v)); break;
                 case kB1On:    u.setBandOn (0, on); break;
                 case kB2On:    u.setBandOn (1, on); break;
                 case kB3On:    u.setBandOn (2, on); break;
@@ -339,8 +341,8 @@ private:
                 case kB2Level: u.setBandLevel (1, v); break;
                 case kB3Level: u.setBandLevel (2, v); break;
                 case kB4Level: u.setBandLevel (3, v); break;
-                case kInput:   u.setInputGainDb ((v * 2.0 - 1.0) * kTrimRangeDb); break;
-                case kOutput:  u.setOutputGainDb ((v * 2.0 - 1.0) * kTrimRangeDb); break;
+                case kInput:   u.setInputGainDb (inputDb (v)); break;
+                case kOutput:  u.setOutputGainDb (outputDb (v)); break;
                 default: break;
             }
         }

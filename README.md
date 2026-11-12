@@ -19,9 +19,10 @@ take the band mod:
 |---|---|
 | **Dolby tone** | 850 Hz calibration tone at Dolby level (with its warble). Record only, as on the unit; the NR signal is shorted while it runs. |
 | Meter | Output 1 level against Dolby level (average-responding, VU-like). |
-| **NR (in - out)** | Lit = NR in. Out = the unit as a fixed-gain amplifier. |
-| **rec / play** | Interlocked. **rec** = encode (the Dolby A trick), **play** = decode. |
-| **BAND 1-4 level** | The band's summing resistor as a pot: 0 = off, 10 = the stock resistor (unmodified Cat. 22). Audio taper: half way = -12 dB. |
+| **NR (in - out)** | The on/off. Lit = NR in. Out = the unit as a fixed-gain amplifier. |
+| **STRESS** | 0 to +24 dB more of the whole compressed band signal (all bands). 0 = stock Cat. 22; around +18 dB gives the near-equal blend of the classic "vocal stresser" (Sound On Sound's recreation uses about 1.5 : 1 dry to processed). |
+| **rec** | Always lit: the unit only records (encodes). |
+| **BAND 1-4 level** | The band's summing resistor as a pot: 0 = off, **5 = the stock resistor** (red tick), 10 = +18 dB more of that band. 2.5 = -12 dB. |
 | **BAND 1-4 on** | Lit = the band is in. |
 
 Band frequencies (from the filter components): BAND 1 below 80 Hz, BAND 2
@@ -30,12 +31,16 @@ card by subtracting bands 1 and 3 from the full signal, so the bands overlap:
 switching band 1 (or bands 3 and 4) off leaves a little of band 2's edge, just
 as lifting those resistors would on a real card.
 
-The bottom strip has the plugin-only controls: **Input** and **Output** trims
-(+-20 dB), 8 **presets** (SAVE, then a slot), and the readout.
+| **input** trimpot | -40 to +20 dB into the circuit, as the 360's input trim by the module: lower = more of the effect. Its gain is made back up at the output automatically, so it changes the effect, not the level. |
+| **output** trimpot | -20 to +20 dB, the level out. |
+
+The bottom strip holds 8 **presets** (SAVE, then a slot) and the readout.
 
 Levels: a **-18 dBFS** sine is **Dolby level** (+4 dBu at the unit's line input),
-and Dolby level comes out at -18 dBFS. Use Input to set how hard you drive the
-compressors: the trick depends on the level against Dolby level.
+and Dolby level comes out at -18 dBFS.
+
+The classic vocal stresser: BAND 1 and BAND 2 off, BAND 3 and 4 on, then
+STRESS and the input trim to taste.
 
 ## The circuit as modelled
 
@@ -46,8 +51,7 @@ compressors: the trick depends on the level against Dolby level.
 - Four feedback compressors (FET attenuators controlled from the band's own
   output through a full-wave rectifier and integrator), overshoot limiter diodes.
 - Summing resistors R109 11K0, R209 11K3, R309 8K87, R409 9K53 (the band mod).
-- Record: output = input + NR signal. Play: the NR signal is fed back
-  (solved exactly each sample), so encode -> decode returns the input.
+- Record (encode) only: output = input + NR signal.
 - Output 2 amp, line amplifier clipping at about +21 dBm into 600 ohms on the
   18 V rail, 1:2 output transformer.
 - Runs at 4x oversampling.

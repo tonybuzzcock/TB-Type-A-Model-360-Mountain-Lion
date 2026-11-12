@@ -137,11 +137,11 @@ int main (int argc, char** argv)
 
     // Each knob answers where it is drawn (dragged up from mid-travel)
     {
-        const int knobs[6] = { kB1Level, kB2Level, kB3Level, kB4Level, kInput, kOutput };
-        const CGFloat kx[6] = { 610, 760, 910, 1060, 48, 118 };
-        const CGFloat ky[6] = { 88, 88, 88, 88, 214, 214 };
+        const int knobs[7] = { kStress, kB1Level, kB2Level, kB3Level, kB4Level, kInput, kOutput };
+        const CGFloat kx[7] = { 500, 610, 760, 910, 1060, 1270, 1270 };
+        const CGFloat ky[7] = { 88, 88, 88, 88, 88, 54, 116 };
         bool all = true;
-        for (int k = 0; k < 6; ++k)
+        for (int k = 0; k < 7; ++k)
         {
             e->setParameter (e, knobs[k], 0.5f);
             mouse (win, panel, NSLeftMouseDown,    NSMakePoint (kx[k], ky[k]));
@@ -150,7 +150,7 @@ int main (int argc, char** argv)
             if (! (e->getParameter (e, knobs[k]) > 0.55f)) { all = false; std::printf ("  knob %d did not turn\n", knobs[k]); }
             e->setParameter (e, knobs[k], kDefaults[knobs[k]]);
         }
-        check (all, "all six knobs turn");
+        check (all, "all seven knobs and trimpots turn");
     }
 
     // Band on/off lamp buttons: each press toggles
@@ -181,24 +181,24 @@ int main (int argc, char** argv)
         }
     }
 
-    // NR in-out, rec / play (interlocked), Dolby tone
-    mouse (win, panel, NSLeftMouseDown, NSMakePoint (350, 106));
-    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (350, 106));
+    // NR in-out (the on/off); rec is a lamp only
+    mouse (win, panel, NSLeftMouseDown, NSMakePoint (345, 106));
+    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (345, 106));
     check (e->getParameter (e, kNr) < 0.5f, "NR button switches NR out");
-    mouse (win, panel, NSLeftMouseDown, NSMakePoint (490, 106));
-    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (490, 106));
-    check (e->getParameter (e, kMode) < 0.5f, "play button selects PLAY");
-    mouse (win, panel, NSLeftMouseDown, NSMakePoint (490, 106));
-    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (490, 106));
-    check (e->getParameter (e, kMode) < 0.5f, "pressing play again stays on PLAY (interlocked)");
     pump (0.1);
-    renderPNG (panel, dir + "/panel_play_nr_out.png");
-    mouse (win, panel, NSLeftMouseDown, NSMakePoint (420, 106));
-    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (420, 106));
-    check (e->getParameter (e, kMode) >= 0.5f, "rec button selects REC");
-    mouse (win, panel, NSLeftMouseDown, NSMakePoint (350, 106));
-    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (350, 106));
+    renderPNG (panel, dir + "/panel_nr_out.png");
+    mouse (win, panel, NSLeftMouseDown, NSMakePoint (345, 106));
+    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (345, 106));
     check (e->getParameter (e, kNr) >= 0.5f, "and NR back in");
+    {
+        float before[kNumParams];
+        for (int i = 0; i < kNumParams; ++i) before[i] = e->getParameter (e, i);
+        mouse (win, panel, NSLeftMouseDown, NSMakePoint (415, 106));
+        mouse (win, panel, NSLeftMouseUp,   NSMakePoint (415, 106));
+        bool same = true;
+        for (int i = 0; i < kNumParams; ++i) if (e->getParameter (e, i) != before[i]) same = false;
+        check (same, "the rec lamp is always lit and changes nothing");
+    }
     mouse (win, panel, NSLeftMouseDown, NSMakePoint (190, 45));
     mouse (win, panel, NSLeftMouseUp,   NSMakePoint (190, 45));
     check (e->getParameter (e, kTone) >= 0.5f, "Dolby tone button switches the tone on");
@@ -224,12 +224,12 @@ int main (int argc, char** argv)
     e->setParameter (e, kB3Level, kDefaults[kB3Level]);
 
     std::printf ("\nPresets\n");
-    #define SLOT(k) NSMakePoint (230.0 + (k) * 33.0 + 14.5, 214.0)
+    #define SLOT(k) NSMakePoint (84.0 + (k) * 33.0 + 14.5, 214.0)
     e->setParameter (e, kB4Level, 0.3f);
     e->setParameter (e, kB1On, 0.0f);
     pump (0.1);
-    mouse (win, panel, NSLeftMouseDown, NSMakePoint (199, 214));    // SAVE
-    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (199, 214));
+    mouse (win, panel, NSLeftMouseDown, NSMakePoint (53, 214));     // SAVE
+    mouse (win, panel, NSLeftMouseUp,   NSMakePoint (53, 214));
     mouse (win, panel, NSLeftMouseDown, SLOT (2));                   // slot 3
     mouse (win, panel, NSLeftMouseUp,   SLOT (2));
     FILE* pf = std::fopen (presetFile.c_str(), "r");
@@ -275,6 +275,9 @@ int main (int argc, char** argv)
         for (int i = 0; i < n; ++i) a[i] = b[i] = (float) (0.17803 * std::sin (2.0 * 3.14159265358979 * 1000.0 * i / 44100.0));   // Dolby level
         float* in[2] = { &a[0], &b[0] };
         e->processReplacing (e, in, out, n);
+        e->setParameter (e, kB1On, 0.0f);       // the vocal stresser: bands 3 and 4, STRESS up
+        e->setParameter (e, kB2On, 0.0f);
+        e->setParameter (e, kStress, 0.75f);
         mouse (win, panel, NSLeftMouseDown, NSMakePoint (1130, 88));     // readout shows BAND 4
         mouse (win, panel, NSLeftMouseUp,   NSMakePoint (1130, 88));
         mouse (win, panel, NSLeftMouseDown, NSMakePoint (1130, 88));

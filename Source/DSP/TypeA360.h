@@ -29,7 +29,8 @@
 //   -> summing resistors R109 11K0, R209 11K3, R309 8K87, R409 9K53 into
 //      the addition stage Q530/Q531 = the noise reduction signal
 //      (THE BAND MOD: each summing resistor is an on/off switch and a pot,
-//      from off up to the stock value)
+//      off .. stock .. +18 dB, and STRESS turns the whole NR signal up to
+//      +24 dB more: the "vocal stresser" blend)
 //   Record:   Output 2 = Output 1 + NR signal   (encode)
 //   Play:     NR signal fed back to the input:  Output 1 = in - NR(Output 1),
 //             Output 2 = Output 1                (decode)
@@ -49,6 +50,8 @@
 // transformers, the tone's warble timing.
 //
 // Plugin level: -18 dBFS sine in = Dolby level; Dolby level out = -18 dBFS.
+// The input trim's gain is made back up after the line amplifier, so it
+// changes how hard the circuit is driven, not the level out.
 // Plain C++98, no allocation after construction.
 
 #ifndef TBTYPEA_TYPEA360_H
@@ -86,9 +89,10 @@ public:
     void setNrIn (bool in);
     void setRecord (bool record);              // true = REC (encode), false = PLAY (decode)
     void setBandOn (int band, bool on);        // band 0..3 = BAND 1..4
-    void setBandLevel (int band, double v);    // 0..1 pot: off .. stock summing resistor
+    void setBandLevel (int band, double v);    // 0..1 pot: off .. stock (at 0.5) .. +18 dB
+    void setStressDb (double dB);              // more of the whole NR signal (0 = stock)
     // Plugin only
-    void setInputGainDb (double dB);
+    void setInputGainDb (double dB);     // drive into the circuit; made back up at the output
     void setOutputGainDb (double dB);
 
     // Mono in, mono out
@@ -97,7 +101,7 @@ public:
     static int latencySamples() { return Oversampler4x::latencySamples(); }
 
     // Introspection for the panel, the wrapper and the tests
-    static double bandLevelGain (double pot);          // pot -> share of the stock band signal
+    static double bandLevelGain (double pot);          // pot -> band signal against stock (1 at 0.5)
     static double bandLevelDb (double pot);            // the same in dB (-200 for off)
     double meterDb() const;                            // Output 1, dB re Dolby level (VU ballistics)
     double bandGainReduction (int band) const;         // 0..1 attenuator gain of a band compressor
@@ -118,6 +122,7 @@ private:
     bool   bandOn[kNumBands];
     double bandPot[kNumBands];
     double inT, outT, inG, outG;
+    double stressGain;
     double bandW[kNumBands], bandWT[kNumBands];        // smoothed summing weights
     double nrW, nrWT, toneW, toneWT;
     double smCoef;

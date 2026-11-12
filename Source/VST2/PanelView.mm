@@ -2,12 +2,13 @@
 // The custom panel for TB Type A 360: an original design laid out like the
 // user's Model 360 (photo): a 1U 19" rack face in the unit's proportions with
 // silver ears, the silver control plate on the left (Dolby tone button over
-// the small level meter, then the NR / rec / play lamp pushbuttons) widened
-// to the right to take the band mod (BAND 1-4: a level pot and a lit on/off
-// pushbutton each, the band's frequencies underneath), and a narrower black
-// module cover on the right with the user's TB electronic logo, a plain red
-// stripe and the red box. A strip of plugin controls runs along the bottom
-// (Input, Output, presets, readout).
+// the small level meter, then the NR (in-out) and rec lamp pushbuttons; rec is
+// always lit: this unit only records) widened to the right to take the band
+// mod (BAND 1-4: a level pot and a lit on/off pushbutton each, the band's
+// frequencies underneath), and a narrower black module cover on the right
+// with the input and output trimpots by the module, the user's TB electronic
+// logo, a plain red stripe and the red box. A strip along the bottom holds
+// the presets and the readout.
 //
 // Every pushbutton lights up when engaged (the user's standard).
 // Cocoa, manual retain/release, and only APIs that exist in Mac OS X 10.8.5.
@@ -30,7 +31,7 @@ using namespace tbtypea;
 namespace
 {
 
-enum CtlType { kCtlKnob, kCtlSmallKnob, kCtlLamp, kCtlTone, kCtlRec, kCtlPlay };
+enum CtlType { kCtlKnob, kCtlTrim, kCtlLamp, kCtlTone };
 enum LampColour { kLampNone, kLampWhite, kLampRed, kLampGreen, kLampAmber };
 
 struct Ctl
@@ -58,9 +59,8 @@ const CGFloat kBandKnobY = 88.0;
 
 const Ctl kCtls[] = {
     { kTone,    kCtlTone,  190, 45,  40, 20, kLampAmber, "DOLBY TONE" },
-    { kNr,      kCtlLamp,  350, 106, 54, 46, kLampWhite, "NR" },
-    { kMode,    kCtlRec,   420, 106, 54, 46, kLampRed,   "MODE" },
-    { kMode,    kCtlPlay,  490, 106, 54, 46, kLampGreen, "MODE" },
+    { kNr,      kCtlLamp,  345, 106, 54, 46, kLampWhite, "NR" },
+    { kStress,  kCtlKnob,  500, kBandKnobY, 22, 0, kLampNone, "STRESS" },
     { kB1Level, kCtlKnob,  610, kBandKnobY, 22, 0, kLampNone,  "BAND 1 LEVEL" },
     { kB1On,    kCtlLamp,  680, kBandKnobY, 34, 30, kLampAmber, "BAND 1" },
     { kB2Level, kCtlKnob,  760, kBandKnobY, 22, 0, kLampNone,  "BAND 2 LEVEL" },
@@ -69,9 +69,9 @@ const Ctl kCtls[] = {
     { kB3On,    kCtlLamp,  980, kBandKnobY, 34, 30, kLampAmber, "BAND 3" },
     { kB4Level, kCtlKnob, 1060, kBandKnobY, 22, 0, kLampNone,  "BAND 4 LEVEL" },
     { kB4On,    kCtlLamp, 1130, kBandKnobY, 34, 30, kLampAmber, "BAND 4" },
-    // Plugin strip
-    { kInput,   kCtlSmallKnob,  48, 214, 17, 0, kLampNone, "INPUT" },
-    { kOutput,  kCtlSmallKnob, 118, 214, 17, 0, kLampNone, "OUTPUT" },
+    // Trimpots by the module
+    { kInput,   kCtlTrim, 1270, 54,  12, 0, kLampNone, "INPUT" },
+    { kOutput,  kCtlTrim, 1270, 116, 12, 0, kLampNone, "OUTPUT" },
 };
 const int kNumCtls = (int) (sizeof (kCtls) / sizeof (kCtls[0]));
 
@@ -79,9 +79,10 @@ const char* const kBandFreq[4] = { "below 80 Hz", "80 Hz - 3 kHz", "above 3 kHz"
 
 // Preset section in the strip: a SAVE button and slots 1..8, then the readout
 const CGFloat kStripLabelY = 181.0;
-const NSRect kSaveRect = { { 176.0, 201.0 }, { 46.0, 26.0 } };
-const CGFloat kSlotX0 = 230.0, kSlotPitch = 33.0, kSlotW = 29.0, kSlotY = 201.0, kSlotH = 26.0;
-const NSRect kReadoutRect = { { 520.0, 190.0 }, { 640.0, 50.0 } };
+const NSRect kSaveRect = { { 30.0, 201.0 }, { 46.0, 26.0 } };
+const CGFloat kSlotX0 = 84.0, kSlotPitch = 33.0, kSlotW = 29.0, kSlotY = 201.0, kSlotH = 26.0;
+const NSRect kReadoutRect = { { 380.0, 190.0 }, { 640.0, 50.0 } };
+const NSRect kRecLamp = { { 388.0, 83.0 }, { 54.0, 46.0 } };     // always lit
 
 inline NSRect slotRect (int k) { return NSMakeRect (kSlotX0 + k * kSlotPitch, kSlotY, kSlotW, kSlotH); }
 inline NSRect ctlRect (const Ctl& c) { return NSMakeRect (c.cx - c.w * 0.5, c.cy - c.h * 0.5, c.w, c.h); }
@@ -318,11 +319,11 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
     [self drawThumbscrewAt: NSMakePoint (NSMaxX (kBlackBox) - 26.0, NSMidY (kBlackBox))];
 
     // TB electronic logo (white "electronic" on the black), plain red stripe, red box
-    tblogo::drawTBLogo (NSMakeRect (NSMinX (kBlackBox) + 50.0, NSMidY (kBlackBox) - 36.0, 130.0, 72.0), rgb (236, 236, 236));
+    tblogo::drawTBLogo (NSMakeRect (1300.0, NSMidY (kBlackBox) - 36.0, 130.0, 72.0), rgb (236, 236, 236));
     NSColor* red = rgb (198, 52, 36);
     const NSRect box = NSMakeRect (1560.0, 27.0, 128.0, 112.0);
     [red set];
-    NSRectFill (NSMakeRect (1392.0, NSMidY (kBlackBox) - 11.0, NSMinX (box) - 1392.0 + 2.0, 22.0));
+    NSRectFill (NSMakeRect (1438.0, NSMidY (kBlackBox) - 11.0, NSMinX (box) - 1438.0 + 2.0, 22.0));
     NSBezierPath* bp = [NSBezierPath bezierPathWithRect: NSInsetRect (box, 3.5, 3.5)];
     [bp setLineWidth: 7.0];
     [bp stroke];
@@ -330,16 +331,22 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
     // Labels on the silver plate (black, plain lettering as on the unit)
     NSColor* ink = rgb (20, 20, 22);
     drawText ("Dolby tone", boldFont (11.0), ink, 190, 24);
-    drawText ("NR", boldFont (11.5), ink, 350, 37, 2.0);
-    drawText ("(in - out)", plainFont (10.0), ink, 350, 51);
-    drawText ("rec", boldFont (11.5), ink, 420, 48);
-    drawText ("play", boldFont (11.5), ink, 490, 48);
+    drawText ("NR", boldFont (11.5), ink, 345, 37, 2.0);
+    drawText ("(in - out)", plainFont (10.0), ink, 345, 51);
+    drawText ("rec", boldFont (11.5), ink, 415, 48);
+    drawText ("STRESS", boldFont (13.0), ink, 500, 24, 0.8);
+    drawText ("all bands", plainFont (10.0), ink, 500, 52);
+    drawText ("0 to +24 dB", plainFont (11.0), ink, 500, 142);
     NSBezierPath* br = [NSBezierPath bezierPath];
-    [br moveToPoint: NSMakePoint (392.0, 59.5)]; [br lineToPoint: NSMakePoint (518.0, 59.5)];
-    [br moveToPoint: NSMakePoint (455.5, 40.0)]; [br lineToPoint: NSMakePoint (455.5, 59.5)];
+    [br moveToPoint: NSMakePoint (393.0, 59.5)]; [br lineToPoint: NSMakePoint (437.0, 59.5)];
     [br setLineWidth: 1.2];
     [ink set];
     [br stroke];
+
+    // Trimpot labels on the module cover
+    NSColor* white = rgb (236, 236, 236);
+    drawText ("input", plainFont (10.0), white, 1270, 29);
+    drawText ("output", plainFont (10.0), white, 1270, 91);
 
     // Divider before the band mod
     [rgb (60, 62, 66) set];
@@ -565,6 +572,46 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
     [line stroke];
 }
 
+// Screwdriver trimpot on the module cover: silver body with a slot, end ticks
+- (void) drawTrim: (const Ctl& ) c
+{
+    const NSPoint ctr = NSMakePoint (c.cx, c.cy);
+    const CGFloat r = c.w;
+    NSColor* white = rgb (210, 210, 212);
+    for (int k = 0; k <= 10; k += 5)
+    {
+        const CGFloat a = valueAngle (k / 10.0);
+        NSBezierPath* t = [NSBezierPath bezierPath];
+        [t moveToPoint: polar (ctr.x, ctr.y, r + 3.0, a)];
+        [t lineToPoint: polar (ctr.x, ctr.y, r + 7.0, a)];
+        [t setLineWidth: 1.2];
+        [white set];
+        [t stroke];
+    }
+    const NSPoint pm = polar (ctr.x, ctr.y, r + 12.0, valueAngle (0.0));
+    const NSPoint pp = polar (ctr.x, ctr.y, r + 12.0, valueAngle (1.0));
+    drawText ("-", boldFont (10.0), white, pm.x, pm.y);
+    drawText ("+", boldFont (10.0), white, pp.x, pp.y);
+
+    NSBezierPath* body = [NSBezierPath bezierPathWithOvalInRect: NSMakeRect (ctr.x - r, ctr.y - r, 2 * r, 2 * r)];
+    NSGradient* g = [[[NSGradient alloc] initWithStartingColor: rgb (238, 239, 241) endingColor: rgb (126, 128, 132)] autorelease];
+    [g drawInBezierPath: body relativeCenterPosition: NSMakePoint (-0.35, 0.4)];
+    [rgb (8, 8, 10) set];
+    [body setLineWidth: 1.2];
+    [body stroke];
+    const CGFloat a = valueAngle (shown[c.param]);
+    NSBezierPath* slot = [NSBezierPath bezierPath];
+    [slot moveToPoint: polar (ctr.x, ctr.y, r * 0.85, a + (CGFloat) M_PI)];
+    [slot lineToPoint: polar (ctr.x, ctr.y, r * 0.85, a)];
+    [slot setLineWidth: 3.0];
+    [rgb (40, 40, 44) set];
+    [slot stroke];
+    // A red dot on the slot's pointing end
+    const NSPoint d = polar (ctr.x, ctr.y, r * 0.62, a);
+    [rgb (210, 40, 30) set];
+    [[NSBezierPath bezierPathWithOvalInRect: NSMakeRect (d.x - 1.8, d.y - 1.8, 3.6, 3.6)] fill];
+}
+
 // Band level knob with its 0..10 tick scale (numbered at the ends only)
 - (void) drawBandKnob: (const Ctl&) c
 {
@@ -578,6 +625,16 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
         [t setLineWidth: (k % 5) == 0 ? 1.3 : 0.9];
         [ink set];
         [t stroke];
+    }
+    if (c.param != kStress)
+    {
+        // Stock summing resistor at 5: a red tick
+        NSBezierPath* st = [NSBezierPath bezierPath];
+        [st moveToPoint: polar (c.cx, c.cy, c.w + 3.0, 0.0)];
+        [st lineToPoint: polar (c.cx, c.cy, c.w + 9.0, 0.0)];
+        [st setLineWidth: 2.2];
+        [rgb (200, 30, 24) set];
+        [st stroke];
     }
     const NSPoint p0 = polar (c.cx, c.cy, c.w + 15.0, valueAngle (0.0));
     const NSPoint p1 = polar (c.cx, c.cy, c.w + 15.0, valueAngle (1.0));
@@ -605,11 +662,11 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
         host->getParamDisplay (readoutParam, disp);
         const int kind = kParamKind[readoutParam];
         const char* name = (readoutCtl >= 0) ? kCtls[readoutCtl].label : kParamNames[readoutParam];
-        if (kind == kModeSw) name = "MODE";
         char text[96];
-        const bool db = (kind == kDb20) || (kind == kBandLevel && std::strcmp (disp, "Off") != 0);
+        const bool trim = (kind == kInTrim || kind == kOutTrim);
+        const bool db = trim || kind == kStressKnob || (kind == kBandLevel && std::strcmp (disp, "Off") != 0);
         // Upper-case the switch states for the readout
-        for (char* q = disp; *q; ++q) if (*q >= 'a' && *q <= 'z' && kind != kBandLevel && kind != kDb20) *q = (char) (*q - 32);
+        for (char* q = disp; *q; ++q) if (*q >= 'a' && *q <= 'z' && kind != kBandLevel && kind != kStressKnob && ! trim) *q = (char) (*q - 32);
         std::snprintf (text, sizeof (text), "%s   %s%s", name, disp, db ? " dB" : "");
         drawText (text, boldFont (16.0), [NSColor blackColor], NSMidX (box), NSMidY (box));
     }
@@ -669,21 +726,14 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
             case kCtlKnob:  [self drawBandKnob: c]; break;
             case kCtlTone:  [self drawToneButton: c]; break;
             case kCtlLamp:  [self drawLampButton: ctlRect (c) lamp: c.lamp lit: isOn (shown[c.param])]; break;
-            case kCtlRec:   [self drawLampButton: ctlRect (c) lamp: c.lamp lit: isOn (shown[c.param])]; break;
-            case kCtlPlay:  [self drawLampButton: ctlRect (c) lamp: c.lamp lit: ! isOn (shown[c.param])]; break;
-            case kCtlSmallKnob:
-            {
-                [self drawKnobAt: NSMakePoint (c.cx, c.cy) radius: c.w value: shown[c.param]];
-                drawText (c.label, boldFont (10.5), ink, c.cx, kStripLabelY);
-                drawText ("-20", plainFont (9.5), ink, c.cx - c.w + 1.0, c.cy + c.w + 9.0);
-                drawText ("+20", plainFont (9.5), ink, c.cx + c.w - 1.0, c.cy + c.w + 9.0);
-                break;
-            }
+            case kCtlTrim:  [self drawTrim: c]; break;
             default: break;
         }
     }
+    [self drawLampButton: kRecLamp lamp: kLampRed lit: true];     // this unit only records
     [self drawPresets];
     [self drawReadout];
+    (void) ink;
 }
 
 //------------------------------------------------------------------------------
@@ -694,7 +744,7 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
     for (int i = 0; i < kNumCtls; ++i)
     {
         const Ctl& c = kCtls[i];
-        if (c.type == kCtlKnob || c.type == kCtlSmallKnob)
+        if (c.type == kCtlKnob || c.type == kCtlTrim)
         {
             const CGFloat reach = c.w + 6.0;
             const CGFloat dx = p.x - c.cx, dy = p.y - c.cy;
@@ -772,12 +822,10 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
     status[0] = 0;
     activePreset = -1;     // settings are being changed away from the preset
 
-    if (c.type == kCtlLamp || c.type == kCtlTone || c.type == kCtlRec || c.type == kCtlPlay)
+    if (c.type == kCtlLamp || c.type == kCtlTone)
     {
-        // Lamp buttons toggle; rec and play are interlocked (each selects its mode)
-        float v = isOn (shown[c.param]) ? 0.0f : 1.0f;
-        if (c.type == kCtlRec)  v = 1.0f;
-        if (c.type == kCtlPlay) v = 0.0f;
+        // Lamp buttons toggle
+        const float v = isOn (shown[c.param]) ? 0.0f : 1.0f;
         host->guiBeginEdit (c.param);
         [self setParam: c.param value: v];
         host->guiEndEdit (c.param);
@@ -817,7 +865,7 @@ void lampColours (int lamp, NSColor** top, NSColor** bottom, NSColor** glow, NSC
     const int i = [self ctlAtPoint: p];
     if (i < 0 || ! host) return;
     const Ctl& c = kCtls[i];
-    if (c.type != kCtlKnob && c.type != kCtlSmallKnob) return;
+    if (c.type != kCtlKnob && c.type != kCtlTrim) return;
     const CGFloat d = [e deltaY];
     if (d == 0.0) return;
     status[0] = 0;

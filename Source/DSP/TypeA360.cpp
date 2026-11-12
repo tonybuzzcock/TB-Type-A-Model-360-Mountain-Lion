@@ -83,7 +83,7 @@ namespace
 TypeA360::TypeA360()
     : fsBase (44100.0), fsOs (176400.0),
       toneOn (false), nrIn (true), record (true),
-      inT (1.0), outT (1.0), inG (1.0), outG (1.0),
+      inT (1.0), outT (1.0), inG (1.0), outG (1.0), stressGain (1.0),
       nrW (1.0), nrWT (1.0), toneW (0.0), toneWT (0.0), smCoef (0.0),
       t2Flux (0.0), t3Flux (0.0), fluxCoef (0.0),
       tonePhase (0.0), toneWarble (0.0), toneWarbleInc (0.0),
@@ -92,7 +92,7 @@ TypeA360::TypeA360()
     for (int b = 0; b < kNumBands; ++b)
     {
         bandOn[b] = true;
-        bandPot[b] = 1.0;
+        bandPot[b] = 0.5;
         bandW[b] = bandWT[b] = kSum[b];
         lastBand[b] = lastComp[b] = 0.0;
     }
@@ -184,11 +184,18 @@ void TypeA360::reset()
 
 static double dbToGain (double dB) { return std::pow (10.0, dB / 20.0); }
 
+// Band pot: off at 0, audio taper up to the stock summing resistor at 0.5
+// (half way there = -12 dB), then +18 dB more at 1 (a smaller resistor)
 double TypeA360::bandLevelGain (double pot)
 {
     if (! (pot > 0.0)) return 0.0;
     if (pot > 1.0) pot = 1.0;
-    return pot * pot;               // audio-taper pot in place of the summing resistor
+    if (pot <= 0.5)
+    {
+        const double x = pot / 0.5;
+        return x * x;
+    }
+    return std::pow (10.0, (18.0 * (pot - 0.5) / 0.5) / 20.0);
 }
 
 double TypeA360::bandLevelDb (double pot)
@@ -200,7 +207,7 @@ double TypeA360::bandLevelDb (double pot)
 void TypeA360::updateSmoothed()
 {
     for (int b = 0; b < kNumBands; ++b)
-        bandWT[b] = bandOn[b] ? kSum[b] * bandLevelGain (bandPot[b]) : 0.0;
+        bandWT[b] = bandOn[b] ? kSum[b] * bandLevelGain (bandPot[b]) * stressGain : 0.0;
     nrWT = nrIn ? 1.0 : 0.0;
     toneWT = (toneOn && record) ? 1.0 : 0.0;
 }
@@ -225,6 +232,7 @@ void TypeA360::setBandLevel (int band, double v)
 }
 
 void TypeA360::setInputGainDb (double dB)  { inT = dbToGain (dB); }
+void TypeA360::setStressDb (double dB)     { stressGain = dbToGain (dB < 0.0 ? 0.0 : dB); updateSmoothed(); }
 void TypeA360::setOutputGainDb (double dB) { outT = dbToGain (dB); }
 
 double TypeA360::meterDb() const
@@ -376,7 +384,9 @@ double TypeA360::tickOs (double xLine)
     line = t3Hp.tick (line);
     line = core (line, t3Flux, fluxCoef);
     line = t3Lp.tick (line);
-    return line * outG;
+    // Output trim, plus make-up for the input trim (the input sets only how
+    // hard the compressors are driven, not the level out)
+    return line * outG / inG;
 }
 
 void TypeA360::process (const float* in, float* out, int numSamples)

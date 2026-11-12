@@ -57,17 +57,19 @@ double rmsDb (const std::vector<float>& v, int from, int to)
 struct Settings
 {
     bool rec, nr, tone;
+    double stress, inDb;
     bool on[kNumBands];
     double lev[kNumBands];
-    Settings() : rec (true), nr (true), tone (false)
+    Settings() : rec (true), nr (true), tone (false), stress (0.0), inDb (0.0)
     {
-        for (int b = 0; b < kNumBands; ++b) { on[b] = true; lev[b] = 1.0; }
+        for (int b = 0; b < kNumBands; ++b) { on[b] = true; lev[b] = 0.5; }
     }
 };
 
 void apply (TypeA360& u, const Settings& s)
 {
     u.setRecord (s.rec); u.setNrIn (s.nr); u.setDolbyTone (s.tone);
+    u.setStressDb (s.stress); u.setInputGainDb (s.inDb);
     for (int b = 0; b < kNumBands; ++b) { u.setBandOn (b, s.on[b]); u.setBandLevel (b, s.lev[b]); }
 }
 
@@ -191,7 +193,7 @@ int main (int argc, char** argv)
         std::vector<float> p = programme (kSr * 2, -24.0);
         Settings s;
         const double e0 = roundTripErr (p, s);
-        Settings m; m.on[3] = false; m.lev[1] = 0.5; m.lev[2] = 0.7;
+        Settings m; m.on[3] = false; m.lev[1] = 0.25; m.lev[2] = 0.35;
         const double e1 = roundTripErr (p, m);
         std::vector<float> q = sine (440.0, -48.0, kSr);
         const double e2 = roundTripErr (q, s);
@@ -220,7 +222,7 @@ int main (int argc, char** argv)
         check (no1 < full50 - 1.5, "BAND 1 off lowers the bass boost (band 2 overlaps it, as on the card)");
 
         double prev = -1e9; bool rising = true;
-        std::printf ("  1 kHz quiet, BAND 2 pot:");
+        std::printf ("  1 kHz quiet, BAND 2 pot 0, 2.5, 5 (stock), 7.5, 10:");
         for (int k = 0; k <= 4; ++k)
         {
             Settings sp = s; sp.lev[1] = k / 4.0;
@@ -230,10 +232,30 @@ int main (int argc, char** argv)
             prev = b;
         }
         std::printf ("\n");
-        check (rising, "BAND 2 pot raises the 1 kHz boost from off to stock");
+        check (rising, "BAND 2 pot raises the 1 kHz boost from off, past stock");
         Settings z = s; for (int b = 0; b < kNumBands; ++b) z.lev[b] = 0.0;
         check (std::fabs (encodeBoost (1000.0, -60.0, z)) < 0.05, "all pots at zero: no boost");
-        check (std::fabs (TypeA360::bandLevelDb (0.5) + 12.04) < 0.05, "pot at half = -12 dB of the stock band signal");
+        check (std::fabs (TypeA360::bandLevelDb (0.25) + 12.04) < 0.05, "pot at 2.5 = -12 dB of the stock band signal");
+        check (std::fabs (TypeA360::bandLevelDb (0.5)) < 0.01, "pot at 5 = the stock resistor");
+        check (std::fabs (TypeA360::bandLevelDb (1.0) - 18.0) < 0.01, "pot at 10 = +18 dB over stock");
+    }
+
+    std::printf ("\nSTRESS and the input trim (bands 3 and 4 only)\n");
+    {
+        Settings s; s.on[0] = false; s.on[1] = false;
+        const double b0 = encodeBoost (12000.0, -18.0, s);
+        Settings s18 = s; s18.stress = 18.0;
+        const double b18 = encodeBoost (12000.0, -18.0, s18);
+        Settings sIn = s; sIn.inDb = -20.0;
+        const double bIn = encodeBoost (12000.0, -18.0, sIn);
+        std::printf ("  12 kHz at Dolby level: stock %+.1f dB, STRESS +18 %+.1f dB, input -20 %+.1f dB\n", b0, b18, bIn);
+        check (b18 > b0 + 8.0, "STRESS +18 adds a lot more of the compressed top");
+        check (bIn > b0 + 4.0, "turning the input down gives more of the effect");
+        Settings off; off.nr = false; off.inDb = -30.0;
+        std::vector<float> in = sine (1000.0, -18.0, kSr);
+        const double g = rmsDb (run (off, in), kSr / 2, kSr) - rmsDb (in, kSr / 2, kSr);
+        std::printf ("  NR out with input -30 dB: level %+.2f dB\n", g);
+        check (std::fabs (g) < 0.3, "the input trim is made back up at the output");
     }
 
     std::printf ("\nNR out, meter, line amp\n");
@@ -378,6 +400,8 @@ int main (int argc, char** argv)
         Settings enc;
         writeWav (dir + "/01_encode_all_bands.wav", run (enc, p), run (enc, p));
         Settings air; air.on[0] = false; air.on[1] = false;
+        Settings stress = air; stress.stress = 18.0;
+        writeWav (dir + "/06_bands_3_4_stress_18.wav", run (stress, p), run (stress, p));
         writeWav (dir + "/02_encode_bands_3_4_only.wav", run (air, p), run (air, p));
         Settings top; top.on[0] = false; top.on[1] = false; top.on[2] = false;
         writeWav (dir + "/03_encode_band_4_only.wav", run (top, p), run (top, p));
@@ -387,7 +411,7 @@ int main (int argc, char** argv)
         Settings t; t.tone = true;
         std::vector<float> z (kSr * 2, 0.0f);
         writeWav (dir + "/05_dolby_tone.wav", run (t, z), run (t, z));
-        std::printf ("  6 files written\n");
+        std::printf ("  7 files written\n");
     }
 
     std::printf ("\n%s (%d failure%s)\n", failures ? "FAILED" : "ALL DSP CHECKS PASSED", failures, failures == 1 ? "" : "s");
